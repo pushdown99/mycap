@@ -300,7 +300,7 @@ class TRANSFORMER:
 
     return dataset
 
-  def save (self, model, history, indent = None):
+  def save (self, model, history, len_of_train, len_of_valid, len_of_test, indent = None):
     config = {
       'MAX_VOCAB_SIZE': self.MAX_VOCAB_SIZE,
       'SEQ_LENGTH':     self.SEQ_LENGTH,
@@ -312,7 +312,7 @@ class TRANSFORMER:
       'EPOCHS':         self.EPOCHS,
       'VOCAB_SIZE':     self.VOCAB_SIZE,
     }
-    path = 'files/{}_{}_e{}_v{}/'.format(dt.now().strftime('%Y%m%d'), self.dataname, self.EPOCHS, self.VOCAB_SIZE)
+    path = 'files/{}_{}_e{}_v{}_{}_{}_{}/'.format(dt.now().strftime('%Y%m%d'), self.dataname, self.EPOCHS, self.VOCAB_SIZE, len_of_train, len_of_valid, len_of_test)
     os.makedirs(path, exist_ok=True)
 
     json.dump(history.history, open(path + 'history.json', 'w'), indent=indent)
@@ -377,7 +377,7 @@ class TRANSFORMER:
     return caption_model
 
 
-  def inference (self, images, path):
+  def inference (self, image, path):
     with open(path + 'config.json') as f:
         config = json.load(f)
 
@@ -401,7 +401,8 @@ class TRANSFORMER:
     with open(path + 'config.json') as f:
       config = json.load(f)
 
-    caption = self.generate_caption(images, model, tokenizer, SEQ_LENGTH)
+    caption = self.generate_caption(image, model, tokenizer, SEQ_LENGTH)
+    Display (image)
     print('Prediction: %s' %(caption))
 
   def fit (self, num_of_epochs = 5):
@@ -462,9 +463,8 @@ class TRANSFORMER:
     print('Valid Loss = %.4f - Valid Accuracy = %.4f' % (mt_valid[0], mt_valid[1]))
     print('Test  Loss = %.4f - Test  Accuracy = %.4f' % (mt_test[0],  mt_test[1]) )
 
-    self.save (model, history, 2)
+    self.save (model, history, len(trains), len(valids), len(tests), 2)
     #data = json.dumps(descriptions, default=lambda o: o.__dict__, sort_keys=True, indent=2)
-
 
   # calculate BLEU score
   def calculate_scores(self, actual, predicted):
