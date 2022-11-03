@@ -506,11 +506,12 @@ class TRANSFORMER:
 
 
 class efficientnetb0 (TRANSFORMER):
-  def __init__ (self, config, data, verbose=True):
+  def __init__ (self, config, data = None, verbose=True):
     super().__init__(config, verbose)
-    self.dataname = data['name']
-    self.images   = data['images_dir']
-    self.samsple  = data['example_image']
+    if data is not None:
+      self.dataname = data['name']
+      self.images   = data['images_dir']
+      self.samsple  = data['example_image']
 
     self.IMAGE_SHAPE    = config['IMAGE_SHAPE']
     self.MAX_VOCAB_SIZE = config['MAX_VOCAB_SIZE']
