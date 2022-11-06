@@ -4,6 +4,7 @@ import os
 import re
 import json
 import pandas as pd
+import datetime
 
 from tensorflow.keras import layers
 from tensorflow import keras
@@ -16,6 +17,7 @@ from keras.losses import SparseCategoricalCrossentropy
 from nltk.translate.bleu_score import corpus_bleu, sentence_bleu, SmoothingFunction
 from tqdm.keras import TqdmCallback
 from datetime import datetime as dt
+from timeit import default_timer as timer
 
 from tqdm import tqdm
 from pickle import dump,load
@@ -251,14 +253,38 @@ class TRANSFORMER:
     print('Number of devices: {}'.format(self.strategy.num_replicas_in_sync))
 
   def tokenize (self, data, max_vocab_size, seq_length):
-    self.TOKENIZER = tf.keras.layers.TextVectorization (
-      max_tokens             = max_vocab_size,
-      output_mode            = 'int',
-      output_sequence_length = seq_length,
-      standardize            = custom_standardization,
-    )
-    self.TOKENIZER.adapt (data)
-    self.VOCAB_SIZE = len(self.TOKENIZER.get_vocabulary())
+
+    filename  = 'files/{}_tokenize.pkl'.format(self.dataname)
+
+    if not os.path.isfile(filename):
+      text_dataset = tf.data.Dataset.from_tensor_slices(data)
+      self.TOKENIZER = tf.keras.layers.TextVectorization (
+        max_tokens             = max_vocab_size,
+        output_mode            = 'int',
+        output_sequence_length = seq_length, # input_dim
+        standardize            = custom_standardization,
+      )
+      print('Start tokenize: lines # ', len(data))
+      start = timer()
+      self.TOKENIZER.adapt (text_dataset.batch(1024))
+      self.VOCAB_SIZE = len(self.TOKENIZER.get_vocabulary())
+      end   = timer()
+      elapsed = (end-start)
+      print('Elapsed time: ', str(datetime.timedelta(elapsed)))
+      dump({'config': self.TOKENIZER.get_config(), 'weights': self.TOKENIZER.get_weights()} , open(filename, "wb"))
+      print (self.TOKENIZER("example"))
+    else:
+      token = load(open(filename, 'rb'))
+      self.TOKENIZER = tf.keras.layers.TextVectorization (
+        max_tokens             = token['config']['max_tokens'],
+        output_mode            = 'int',
+        output_sequence_length = token['config']['output_sequence_length'],
+        standardize            = custom_standardization,
+      )
+      self.TOKENIZER.adapt(tf.data.Dataset.from_tensor_slices(["xyz"]))
+      self.TOKENIZER.set_weights(token['weights'])
+      self.VOCAB_SIZE = len(self.TOKENIZER.get_vocabulary())
+      print (self.TOKENIZER("example"))
 
   def read_image_inf(self, images):
     img = tf.io.read_file(images)
@@ -289,14 +315,15 @@ class TRANSFORMER:
     return decode_image
 
   def make_dataset(self, images, captions, data_augment_flag, tokenizer, batch_size, shuffle_dim):
-    AUTOTUNE = tf.data.AUTOTUNE
-    read_image_xx   = self.read_image(data_augment_flag)
-    image_dataset   = tf.data.Dataset.from_tensor_slices(images)
-    image_dataset   = (image_dataset.map(read_image_xx, num_parallel_calls=AUTOTUNE))
-    caption_dataset = tf.data.Dataset.from_tensor_slices(captions).map(tokenizer, num_parallel_calls=AUTOTUNE)
+    for i in tqdm(range(1), desc='make_dataset'):
+      AUTOTUNE = tf.data.AUTOTUNE
+      read_image_xx   = self.read_image(data_augment_flag)
+      image_dataset   = tf.data.Dataset.from_tensor_slices(images)
+      image_dataset   = (image_dataset.map(read_image_xx, num_parallel_calls=AUTOTUNE))
+      caption_dataset = tf.data.Dataset.from_tensor_slices(captions).map(tokenizer, num_parallel_calls=AUTOTUNE)
 
-    dataset         = tf.data.Dataset.zip((image_dataset, caption_dataset))
-    dataset         = dataset.batch(batch_size).shuffle(shuffle_dim).prefetch(AUTOTUNE)
+      dataset         = tf.data.Dataset.zip((image_dataset, caption_dataset))
+      dataset         = dataset.batch(batch_size).shuffle(shuffle_dim).prefetch(AUTOTUNE)
 
     return dataset
 

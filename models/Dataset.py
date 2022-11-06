@@ -3,6 +3,7 @@ import tensorflow as tf
 import os
 import gc
 import json
+import glob
 import csv
 import random
 import string
@@ -17,104 +18,6 @@ class Dataset:
     self.verbose = verbose
     self.config  = config
 
-  # load doc into memory
-  def load_doc(self, filename):
-    # open the file as read only
-    file = open(filename, 'r')
-    # read all text
-    text = file.read()
-    # close the file
-    file.close()
-    return text
-
-  # load a pre-defined list of photo identifiers
-  def load_set(self, filename):
-    doc = self.load_doc(filename)
-    dataset = list()
-    # process line by line
-    for line in doc.split('\n'):
-      # skip empty lines
-      if len(line) < 1:
-        continue
-      # get the image identifier
-      identifier = line.split('.')[0]
-      dataset.append(identifier)
-    return set(dataset)
-
-  # load clean descriptions into memory
-  def load_clean_descriptions(self, filename, dataset):
-    # load document
-    doc = self.load_doc(filename)
-    descriptions = dict()
-    for line in tqdm(doc.split('\n')):
-      # split line by white space
-      tokens = line.split()
-      # split id from description
-      image_id, image_desc = tokens[0], tokens[1:]
-      # skip images not in the set
-      if image_id in dataset:
-        # create list
-        if image_id not in descriptions:
-          descriptions[image_id] = list()
-        # wrap description in tokens
-        desc = 'sos ' + ' '.join(image_desc) + ' eos'
-        # store
-        descriptions[image_id].append(desc)
-    return descriptions
-
-  def load_dataset(self, images_dir, descriptions, dataset, title='[title]', number_of_captions = 5):
-    map1 = dict()
-    map2 = dict()
-
-    for image_id, desc_list in tqdm(descriptions.items(), total=len(descriptions), desc=title):
-      if image_id in dataset:
-        image_path = '{}/{}.jpg'.format(images_dir, image_id)
-        if image_id not in map1:
-          map1[image_id]   = list()
-          map2[image_path] = list()
-        for i in range(len(desc_list)):
-          caption = 'sos {} eos'.format(desc_list[i])
-          map1[image_id].append(caption)
-          map2[image_path].append(caption)
-    return map1, map2
-
-
-  # covert a dictionary of clean descriptions to a list of descriptions
-  def to_lines(self, descriptions):
-    all_desc = list()
-    for key in descriptions.keys():
-      [all_desc.append(d) for d in descriptions[key]]
-    return all_desc
-
-  # fit a tokenizer given caption descriptions
-  def create_tokenizer(self, descriptions):
-    lines = self.to_lines(descriptions)
-    tokenizer = tf.keras.preprocessing.text.Tokenizer()
-    tokenizer.fit_on_texts(lines)
-    return tokenizer
-
-  # extract descriptions for images
-  def load_descriptions(self, doc):
-    mapping = dict()
-    # process lines
-    for line in doc.split('\n'):
-      # split line by white space
-      tokens = line.split()
-      if len(line) < 2:
-        continue
-      # take the first token as the image id, the rest as the description
-      image_id, image_desc = tokens[0], tokens[1:]
-      # remove filename from image id
-      image_id = image_id.split('.')[0]
-      # convert description tokens back to string
-      image_desc = ' '.join(image_desc)
-      # create the list if needed
-      if image_id not in mapping:
-        mapping[image_id] = list()
-      # store description
-      mapping[image_id].append(image_desc)
-    return mapping
-
   def df_load_descriptions(self, df, title='[title]', number_of_captions = 5):
     mapping = dict()
     for i, r in tqdm(df.iterrows(), total=df.shape[0], desc=title):
@@ -128,177 +31,217 @@ class Dataset:
         continue
       mapping[image_id].append(caption)
 
-    # cleasing description, caption data
     self.clean_descriptions (mapping)
 
+    drops = list()
     for k, v in mapping.items():
       if not os.path.isfile(k):
-        mapping.pop(k)
+        drops.append(k)
         print ('pop (not os.path.isfile): ', k)
       elif len(v) != number_of_captions:
-        mapping.pop(k)
+        drops.append(k)
         print ('pop (number_of_captions): ', k, len(v))
+
+    for k in drops:
+      mapping.pop(k)
 
     return mapping
 
-
   def clean_descriptions(self, descriptions):
-    # prepare translation table for removing punctuation
     table = str.maketrans('', '', string.punctuation)
     for key, desc_list in descriptions.items():
       for i in range(len(desc_list)):
         desc = desc_list[i]
-        # tokenize
         desc = desc.split()
-        # convert to lower case
         desc = [word.lower() for word in desc]
-        # remove punctuation from each token
         desc = [w.translate(table) for w in desc]
-        # remove hanging 's' and 'a'
         desc = [word for word in desc if len(word)>1]
-        # remove tokens with numbers in them
         desc = [word for word in desc if word.isalpha()]
-        # store as string
         desc_list[i] =  ' '.join(desc)
 
-  # convert the loaded descriptions into a vocabulary of words
   def to_vocabulary(self, descriptions):
-    # build a list of all description strings
     all_desc = set()
     for key in descriptions.keys():
       [all_desc.update(d.split()) for d in descriptions[key]]
     return all_desc
 
-  def save_caption_mapping_data (self, descriptions, t, dataname):
-    with open('files/{}_{}_caption_mapping.json'.format(dataname, t), 'w') as f:
-      json_string = json.dumps(descriptions, default=lambda o: o.__dict__, sort_keys=False, indent=2)
-      f.write(json_string)
-
-  # save descriptions to file, one per line
-  def save_descriptions(self, descriptions, filename):
-    lines = list()
-    for key, desc_list in descriptions.items():
-      for desc in desc_list:
-        lines.append(key + ' ' + desc)
-    data = '\n'.join(lines)
-    file = open(filename, 'w')
-    file.write(data)
-    file.close()
-
-  def save_text_data(self, descriptions, filename):
-    lines = list()
-    for key, desc_list in descriptions.items():
-      for desc in desc_list:
-        lines.append('sos ' + desc + ' eos')
-    with open(filename, mode='w', encoding='utf-8') as f:
-      json.dump(lines, f, indent=2)
-
 class flickr8k (Dataset):
-  def __init__(self, config, verbose = True):
+  def __init__(self, config, verbose = True, force = True):
     super().__init__ (config, verbose)
 
-    dataname   = config['name']
-    images_dir = config['images_dir']
+    name    = config['name']
+    images  = config['images_dir']
+    caption = config['caption_file']
+    trains  = config['train_file']
+    valids  = config['valid_file']
+    tests   = config['test_file']
+    limit1  = config['train_limit']
+    limit2  = config['valid_limit']
+    limit3  = config['test_limit']
+    number_of_captions    = config['number_of_captions']
 
-    doc = self.load_doc(config['caption_file'])
-    descriptions = self.load_descriptions(doc)
-    print('Loaded: %d ' % len(descriptions))
+    self.get_data (name, images, caption, trains, valids, tests, limit1, limit2, limit3, force, number_of_captions, 2)
 
-    self.clean_descriptions(descriptions)
+  def get_data (self, name, images, caption, trains, valids, tests, limit1, limit2, limit3, force = False, number_of_captions = 5, indent = None):
+    if not force and os.path.isfile('files/{}_descr.json'.format(name)):
+      return
 
-    print(descriptions[list(descriptions.keys())[0]])
-    vocabulary = self.to_vocabulary(descriptions)
-    print('Vocabulary Size: %d' % len(vocabulary))
-    self.save_descriptions(descriptions, 'files/{}_descriptions.txt'.format(dataname))
-    self.save_text_data(descriptions, 'files/{}_text_data.txt'.format(dataname))
-    
-    train = list(self.load_set(config['train_file']))
-    train = train[:config['train_limit']]
-    print('Dataset: train=%d' % len(train))
-    train_descriptions, train_data = self.load_dataset(images_dir[0], descriptions, train)
-    print('Descriptions: train=%d' % len(train_descriptions))
+    df  = pd.read_csv(caption, lineterminator='\n', names=['image_id', 'caption'], sep='\t')
+    df1 = pd.read_csv(trains,  lineterminator='\n', names=['image_id'])
+    df2 = pd.read_csv(valids,  lineterminator='\n', names=['image_id'])
+    df3 = pd.read_csv(tests,   lineterminator='\n', names=['image_id'])
+    df.loc[:,'image_id']  = images[0]+'/'+df.image_id.str.split('#').str[0]
+    df1.loc[:,'image_id'] = images[0]+'/'+df1.image_id.str.split('#').str[0]
+    df2.loc[:,'image_id'] = images[0]+'/'+df2.image_id.str.split('#').str[0]
+    df3.loc[:,'image_id'] = images[0]+'/'+df3.image_id.str.split('#').str[0]
+    df1 = df.loc[df['image_id'].isin(list(df1.image_id))]
+    df2 = df.loc[df['image_id'].isin(list(df2.image_id))]
+    df3 = df.loc[df['image_id'].isin(list(df3.image_id))]
 
-    valid = list(self.load_set(config['valid_file']))
-    valid = valid[:config['valid_limit']]
-    print('Dataset: valid=%d' % len(valid))
-    valid_descriptions, valid_data = self.load_dataset(images_dir[0], descriptions, valid)
-    print('Descriptions: valid=%d' % len(valid_descriptions))
+    ds  = self.df_load_descriptions (df,  'Descriptions ', number_of_captions)
+    vo  = self.to_vocabulary(ds) 
+    dx  = list(df['caption'])            # list for caption data
+    ds1 = self.df_load_descriptions (df1, 'Train dataset', number_of_captions)
+    ds1 = dict(list(ds1.items())[:limit1])
+    ds2 = self.df_load_descriptions (df2, 'Valid dataset', number_of_captions)
+    ds2 = dict(list(ds2.items())[:limit2])
+    ds3 = self.df_load_descriptions (df3, 'Test dataset ', number_of_captions)
+    ds3 = dict(list(ds3.items())[:limit3])
 
-    test = list(self.load_set(config['test_file']))
-    test = test[:config['test_limit']]
-    print('Dataset: test=%d' % len(test))
-    test_descriptions, test_data = self.load_dataset(images_dir[0], descriptions, test)
-    print('Descriptions: test=%d' % len(test_descriptions))
+    print('Loaded: {}/df#{} (train={} valid={}, test={}, vocabulary={})'.format(len(ds), df.shape[0], len(ds1), len(ds2), len(ds3), len(vo)))
 
-    #tokenizer = self.create_tokenizer(train_descriptions)
-
-    ##
-    dump(train, open('files/{}_train.pkl'.format(dataname), 'wb'))
-    dump(valid, open('files/{}_valid.pkl'.format(dataname), 'wb'))
-    dump(test,  open('files/{}_test.pkl'.format(dataname), 'wb'))
-    dump(train_descriptions, open('files/{}_train_descriptions.pkl'.format(dataname), 'wb'))
-    dump(valid_descriptions, open('files/{}_valid_descriptions.pkl'.format(dataname), 'wb'))
-    dump(test_descriptions, open('files/{}_test_descriptions.pkl'.format(dataname), 'wb'))
-
-    with open('files/{}_train_data.json'.format(dataname), "w") as f:
-      json.dump(train_data, f, indent=2)
-    with open('files/{}_valid_data.json'.format(dataname), "w") as f:
-      json.dump(valid_data, f, indent=2)
-    with open('files/{}_test_data.json'.format(dataname), "w") as f:
-      json.dump(test_data, f, indent=2)
-
-    #dump(tokenizer, open('files/{}_tokenizer.pkl'.format(dataname), 'wb'))
+    json.dump(ds, open('files/{}_descr.json'.format(name), 'w'), indent=indent)
+    json.dump(ds1,open('files/{}_train.json'.format(name), 'w'), indent=indent)
+    json.dump(ds2,open('files/{}_valid.json'.format(name), 'w'), indent=indent)
+    json.dump(ds3,open('files/{}_test.json'.format(name),  'w'), indent=indent)
+    json.dump(dx, open('files/{}_text.json'.format(name),  'w'), indent=indent)
 
 class nia (Dataset):
-  def __init__(self, config, verbose = True):
+  def __init__(self, config, verbose = True, force = True, indent = None):
     super().__init__ (config, verbose)
 
-    dataname   = config['name']
+    name    = config['name']
+    data    = config['data_dir']
+    jsons   = config['json_dir']
+    images  = config['images_dir']
+    caption = config['caption_file']
+    trains  = config['train_file']
+    valids  = config['valid_file']
+    tests   = config['test_file']
+    limit1  = config['train_limit']
+    limit2  = config['valid_limit']
+    limit3  = config['test_limit']
+    split1  = config['train_val_split']
+    split2  = config['val_test_split']
+    number_of_captions    = config['number_of_captions']
 
-    doc = self.load_doc(config['caption_file'])
-    descriptions = self.load_descriptions(doc)
-    print('Loaded: %d ' % len(descriptions))
-    self.clean_descriptions(descriptions)
+    self.get_label (name, data, jsons, images[0], split1, split2)
+    self.get_data  (name, images, caption, trains, valids, tests, limit1, limit2, limit3, True, number_of_captions, indent)
 
-    print(list(descriptions.keys())[0])
-    print(descriptions[list(descriptions.keys())[0]])
-    vocabulary = self.to_vocabulary(descriptions)
-    print('Vocabulary Size: %d' % len(vocabulary))
-    self.save_descriptions(descriptions, 'files/{}_descriptions.txt'.format(dataname))
-    self.save_text_data(descriptions, 'files/{}_text_data.txt'.format(dataname))
+  def get_label (self, name, data_dir, json_dir, image_dir, split1, split2, force = False):
+    if not force and os.path.isfile('{}/{}.token.kor.txt'.format(data_dir, name)):
+      return
 
-    train = list(self.load_set(config['train_file']))
-    train = train[:config['train_limit']]
-    print('Dataset: train=%d' % len(train))
-    train_descriptions = self.load_dataset(descriptions, train)
-    print('Descriptions: train=%d' % len(train_descriptions))
+    if name == 'nia0404':
+      frelation = open('{}/{}.relation.txt'.format(data_dir, name), 'w')
+    fetoken   = open('{}/{}.token.eng.txt'.format(data_dir, name),  'w')
+    fktoken   = open('{}/{}.token.kor.txt'.format(data_dir, name),  'w')
+    fimages   = open('{}/{}.images.txt'.format(data_dir, name),     'w')
+    ftrain    = open('{}/{}.trainImages.txt'.format(data_dir, name),'w')
+    fvalid    = open('{}/{}.devImages.txt'.format(data_dir, name),  'w')
+    ftest     = open('{}/{}.testImages.txt'.format(data_dir, name), 'w')
 
-    valid = list(self.load_set(config['valid_file']))
-    valid = valid[:config['valid_limit']]
-    print('Dataset: valid=%d' % len(valid))
-    valid_descriptions = self.load_dataset(descriptions, valid)
-    print('Descriptions: valid=%d' % len(valid_descriptions))
+    images = []
 
-    test = list(self.load_set(config['test_file']))
-    test = test[:config['test_limit']]
-    print('Dataset: test=%d' % len(test))
-    test_descriptions = self.load_dataset(descriptions, test)
-    print('Descriptions: test=%d' % len(test_descriptions))
+    for file in tqdm(glob.glob(json_dir + '/*.json')):
+      with open(file, encoding='utf-8-sig') as f:
+        try:
+          data = json.load(f)
+          filename = data['images'][0]['file_name']
+          image = filename.split('.')[0]
+          if not os.path.isfile(image_dir + '/' + filename):
+            print ('not found: ' + image_dir + filename + ' => ' + file)
+            continue
 
-    tokenizer = self.create_tokenizer(train_descriptions)
+          images.append ('{}.jpg'.format(image))
+          for idx,caption in enumerate(data['annotations'][0]['text']):
+            if name == 'nia0404':
+              frelation.write ("{}.jpg#{}\t{}\t{}\t{}\n".format(image, idx,caption['entity1'],caption['entity2'],caption['relation']))
+            fetoken.write ("{}.jpg#{}\t{}\n".format(image, idx,caption['english']))
+            fktoken.write ("{}.jpg#{}\t{}\n".format(image, idx,caption['korean']))
+          if idx != 9:
+            print (idx, file)
+        except JSONDecodeError as e:
+          print ('Decoding JSON has failed: ', file, e)
 
-    dump(train, open('files/{}_train.pkl'.format(dataname), 'wb'))
-    dump(valid, open('files/{}_valid.pkl'.format(dataname), 'wb'))
-    dump(test,  open('files/{}_test.pkl'.format(dataname), 'wb'))
-    dump(train_descriptions, open('files/{}_train_descriptions.pkl'.format(dataname), 'wb'))
-    dump(valid_descriptions, open('files/{}_valid_descriptions.pkl'.format(dataname), 'wb'))
-    dump(test_descriptions, open('files/{}_test_descriptions.pkl'.format(dataname), 'wb'))
+    random.shuffle(images)
+    fimages.write('\n'.join(images))
 
-    dump(tokenizer, open('files/{}_tokenizer.pkl'.format(dataname), 'wb'))
+    random.shuffle(images)
+    nsize  = len(images)
+    ntrain = int(nsize*split1)
+    nvalid = int((nsize - int(nsize*split1))*split2)
+    ntest = nsize - ntrain - nvalid
+    print (nsize, ntrain, nvalid, ntest)
+
+    train = images[:ntrain]
+    valid = images[ntrain:ntrain+nvalid]
+    test  = images[ntrain+nvalid:]
+
+    print(len(train), len(valid), len(test))
+
+    ftrain.write('\n'.join(train))
+    fvalid.write('\n'.join(valid))
+    ftest.write('\n'.join(test))
+    
+    if name == 'nia0404':
+      frelation.close()  
+    fimages.close()  
+    fetoken.close()  
+    fktoken.close()  
+    ftrain.close()
+    fvalid.close()
+    ftest.close()
+
+  def get_data (self, name, images, caption, trains, valids, tests, limit1, limit2, limit3, force, number_of_captions, indent):
+    if not force and os.path.isfile('files/{}_descr.json'.format(name)):
+      return
+
+    df  = pd.read_csv(caption, lineterminator='\n', names=['image_id', 'caption'], sep='\t')
+    df1 = pd.read_csv(trains,  lineterminator='\n', names=['image_id'])
+    df2 = pd.read_csv(valids,  lineterminator='\n', names=['image_id'])
+    df3 = pd.read_csv(tests,   lineterminator='\n', names=['image_id'])
+    df.loc[:,'image_id']  = images[0]+'/'+df.image_id.str.split('#').str[0]
+    df1.loc[:,'image_id'] = images[0]+'/'+df1.image_id.str.split('#').str[0]
+    df2.loc[:,'image_id'] = images[0]+'/'+df2.image_id.str.split('#').str[0]
+    df3.loc[:,'image_id'] = images[0]+'/'+df3.image_id.str.split('#').str[0]
+    df1 = df.loc[df['image_id'].isin(list(df1.image_id))]
+    df2 = df.loc[df['image_id'].isin(list(df2.image_id))]
+    df3 = df.loc[df['image_id'].isin(list(df3.image_id))]
+
+    print (df.head())
+    ds  = self.df_load_descriptions (df,  'Descriptions ', number_of_captions)
+    vo  = self.to_vocabulary(ds) 
+    dx  = list(df['caption'])            # list for caption data
+
+    ds1 = self.df_load_descriptions (df1, 'Train dataset', number_of_captions)
+    ds1 = dict(list(ds1.items())[:limit1])
+    ds2 = self.df_load_descriptions (df2, 'Valid dataset', number_of_captions)
+    ds2 = dict(list(ds2.items())[:limit2])
+    ds3 = self.df_load_descriptions (df3, 'Test dataset ', number_of_captions)
+    ds3 = dict(list(ds3.items())[:limit3])
+
+    print('Loaded: {}/df#{} (train={} valid={}, test={}, vocabulary={})'.format(len(ds), df.shape[0], len(ds1), len(ds2), len(ds3), len(vo)))
+
+    json.dump(ds, open('files/{}_descr.json'.format(name), 'w'), indent=indent)
+    json.dump(ds1,open('files/{}_train.json'.format(name), 'w'), indent=indent)
+    json.dump(ds2,open('files/{}_valid.json'.format(name), 'w'), indent=indent)
+    json.dump(ds3,open('files/{}_test.json'.format(name),  'w'), indent=indent)
+    json.dump(dx, open('files/{}_text.json'.format(name),  'w'), indent=indent)
 
 class coco (Dataset):
 
-  def __init__(self, config, verbose = True):
+  def __init__(self, config, verbose = True, force = True):
     super().__init__ (config, verbose)
 
     name   = config['name']
@@ -310,7 +253,7 @@ class coco (Dataset):
     split  = config['val_test_split']
     number_of_captions    = config['number_of_captions']
 
-    self.get_data (name, images, trains, valids, limit1, limit2, split, True, number_of_captions, 2)
+    self.get_data (name, images, trains, valids, limit1, limit2, split, force, number_of_captions, 2)
 
   def get_data (self, name, images, trains, valids, limit1, limit2, split, force = False, number_of_captions = 5, indent = None):
     if not force and os.path.isfile('files/{}_descr.json'.format(name)):
