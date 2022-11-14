@@ -46,8 +46,8 @@ flickr8k_cfg = {
   'example_id':         '667626_18933d713e',
 }
 
-nia0403_cfg = {
-  'name':               'nia0403',
+nia0403e_cfg = {
+  'name':               'nia0403e',
   'data_dir':           'datasets/NIA/annotations',
   'json_dir':           'datasets/NIA/annotations/4-3',
   'images_dir':        ['datasets/NIA/images'],
@@ -65,14 +65,15 @@ nia0403_cfg = {
   'example_id':         'IMG_0250492_pan(pan)',
 }
 
-nia0404_cfg = {
-  'name':               'nia0404',
-  'dataset_dir':        'datasets/NIA/annotations',
+nia0403k_cfg = {
+  'name':               'nia0403k',
+  'data_dir':           'datasets/NIA/annotations',
+  'json_dir':           'datasets/NIA/annotations/4-3',
   'images_dir':        ['datasets/NIA/images'],
-  'caption_file':       'datasets/NIA/annotations/nia0404.token.eng.txt',
-  'train_file':         'datasets/NIA/annotations/nia0404.trainImages.txt',
-  'valid_file':         'datasets/NIA/annotations/nia0404.devImages.txt',
-  'test_file':          'datasets/NIA/annotations/nia0404.testImages.txt',
+  'caption_file':       'datasets/NIA/annotations/nia0403.token.kor.txt',
+  'train_file':         'datasets/NIA/annotations/nia0403.trainImages.txt',
+  'valid_file':         'datasets/NIA/annotations/nia0403.devImages.txt',
+  'test_file':          'datasets/NIA/annotations/nia0403.testImages.txt',
   'train_limit':        3000000,
   'valid_limit':        3000000,
   'test_limit':         3000000,
@@ -82,6 +83,79 @@ nia0404_cfg = {
   'example_image':      'datasets/NIA/images/IMG_0250492_pan(pan).jpg',
   'example_id':         'IMG_0250492_pan(pan)',
 }
+
+nia0404e_cfg = {
+  'name':               'nia0404e',
+  'dataset_dir':        'datasets/NIA/annotations',
+  'images_dir':        ['datasets/NIA/images'],
+  'caption_file':       'datasets/NIA/annotations/nia0404.token.eng.txt',
+  'train_file':         'datasets/NIA/annotations/nia0404.trainImages.txt',
+  'valid_file':         'datasets/NIA/annotations/nia0404.devImages.txt',
+  'test_file':          'datasets/NIA/annotations/nia0404.testImages.txt',
+  'train_limit':        8000,
+  'valid_limit':        2000,
+  'test_limit':         1000,
+  'train_val_split':    0.8,
+  'val_test_split':     0.8,
+  'number_of_captions': 5,
+  'example_image':      'datasets/NIA/images/IMG_0250492_pan(pan).jpg',
+  'example_id':         'IMG_0250492_pan(pan)',
+}
+
+nia0404k_cfg = {
+  'name':               'nia0404k',
+  'dataset_dir':        'datasets/NIA/annotations',
+  'images_dir':        ['datasets/NIA/images'],
+  'caption_file':       'datasets/NIA/annotations/nia0404.token.kor.txt',
+  'train_file':         'datasets/NIA/annotations/nia0404.trainImages.txt',
+  'valid_file':         'datasets/NIA/annotations/nia0404.devImages.txt',
+  'test_file':          'datasets/NIA/annotations/nia0404.testImages.txt',
+  'train_limit':        8000,
+  'valid_limit':        2000,
+  'test_limit':         1000,
+  'train_val_split':    0.8,
+  'val_test_split':     0.8,
+  'number_of_captions': 5,
+  'example_image':      'datasets/NIA/images/IMG_0250492_pan(pan).jpg',
+  'example_id':         'IMG_0250492_pan(pan)',
+}
+
+voc2007_cfg = {
+  'name':               'voc2007',
+  'dataset_dir':        'datasets/VOCdevkit/VOC2007',
+  'images_dir':        ['datasets/VOCdevkit/VOC2007/JPEGImages'],
+  'caption_file':       'datasets/NIA/annotations/nia0404.token.kor.txt',
+  'train_file':         'datasets/NIA/annotations/nia0404.trainImages.txt',
+  'valid_file':         'datasets/NIA/annotations/nia0404.devImages.txt',
+  'test_file':          'datasets/NIA/annotations/nia0404.testImages.txt',
+  'train_limit':        8000,
+  'valid_limit':        2000,
+  'test_limit':         1000,
+  'train_val_split':    0.8,
+  'val_test_split':     0.8,
+  'number_of_captions': 5,
+  'example_image':      'datasets/NIA/images/IMG_0250492_pan(pan).jpg',
+  'example_id':         'IMG_0250492_pan(pan)',
+}
+
+voc2012_cfg = {
+  'name':               'voc2012',
+  'dataset_dir':        'datasets/VOCdevkit/VOC2012',
+  'images_dir':        ['datasets/VOCdevkit/VOC2012/JPEGImages'],
+  'caption_file':       'datasets/NIA/annotations/nia0404.token.kor.txt',
+  'train_file':         'datasets/NIA/annotations/nia0404.trainImages.txt',
+  'valid_file':         'datasets/NIA/annotations/nia0404.devImages.txt',
+  'test_file':          'datasets/NIA/annotations/nia0404.testImages.txt',
+  'train_limit':        8000,
+  'valid_limit':        2000,
+  'test_limit':         1000,
+  'train_val_split':    0.8,
+  'val_test_split':     0.8,
+  'number_of_captions': 5,
+  'example_image':      'datasets/NIA/images/IMG_0250492_pan(pan).jpg',
+  'example_id':         'IMG_0250492_pan(pan)',
+}
+
 
 vgg16_cfg = {
   'name':                       'vgg16',

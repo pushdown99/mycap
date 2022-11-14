@@ -314,7 +314,7 @@ class TRANSFORMER:
 
     return decode_image
 
-  def make_dataset(self, images, captions, data_augment_flag, tokenizer, batch_size, shuffle_dim):
+  def make_dataset (self, images, captions, data_augment_flag, tokenizer, batch_size, shuffle_dim):
     for i in tqdm(range(1), desc='make_dataset'):
       AUTOTUNE = tf.data.AUTOTUNE
       read_image_xx   = self.read_image(data_augment_flag)
@@ -339,7 +339,7 @@ class TRANSFORMER:
       'EPOCHS':         self.EPOCHS,
       'VOCAB_SIZE':     self.VOCAB_SIZE,
     }
-    path = 'files/{}_{}_e{}_v{}_{}_{}_{}/'.format(dt.now().strftime('%Y%m%d'), self.dataname, self.EPOCHS, self.VOCAB_SIZE, len_of_train, len_of_valid, len_of_test)
+    path = 'files/{}_{}_e{}_{}_v{}_{}_{}_{}/'.format(dt.now().strftime('%Y%m%d'), self.dataname, self.EPOCHS, self.stopped_epoch, self.VOCAB_SIZE, len_of_train, len_of_valid, len_of_test)
     os.makedirs(path, exist_ok=True)
 
     json.dump(history.history, open(path + 'history.json', 'w'), indent=indent)
@@ -480,6 +480,8 @@ class TRANSFORMER:
       verbose = 1,
     )
     History (history)
+    self.stopped_epoch = early_stopping.stopped_epoch
+    print('stopped_epoch: ', self.stopped_epoch)
 
     # Compute definitive metrics on train/valid set
     mt_train = model.evaluate(ds_train, batch_size=self.BATCH_SIZE)
