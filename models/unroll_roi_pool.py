@@ -25,7 +25,7 @@ if __name__ == "__main__":
   num_channels = options.channels
 
   print("  @tf.function")
-  print("  def compute_pooled_rois_%dx%dx%d(feature_map, rois):" % (pool_height, pool_width, num_channels))
+  print("  def _compute_pooled_rois_%dx%dx%d(feature_map, rois):" % (pool_height, pool_width, num_channels))
   print("    # Special case: %dx%dx%d, unrolled pool width and height (%dx%d=%d)" % (pool_height, pool_width, num_channels, pool_height, pool_width, pool_height * pool_width))
   print("    return tf.map_fn(")
   print("      fn = lambda roi: tf.reshape(")

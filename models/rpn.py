@@ -72,7 +72,7 @@ class RegionProposalNetwork(tf.keras.Model):
     box_delta_regressions = self._rpn_boxes(y)
 
     # Extract valid
-    anchors, objectness_scores, box_deltas = self.extract_valid(
+    anchors, objectness_scores, box_deltas = self._extract_valid(
       anchor_map = anchor_map,
       anchor_valid_map = anchor_valid_map,
       objectness_score_map = scores,
@@ -123,7 +123,7 @@ class RegionProposalNetwork(tf.keras.Model):
 
     return [ scores, box_delta_regressions, proposals ] 
 
-  def extract_valid(self, anchor_map, anchor_valid_map, objectness_score_map, box_delta_map, allow_edge_proposals):
+  def _extract_valid(self, anchor_map, anchor_valid_map, objectness_score_map, box_delta_map, allow_edge_proposals):
     # anchor_valid_map shape is (batch,height,width,num_anchors)
     height = tf.shape(anchor_valid_map)[1]
     width = tf.shape(anchor_valid_map)[2]

@@ -25,7 +25,7 @@ import numpy as np
 from . import math_utils
 
 
-def compute_anchor_sizes():
+def _compute_anchor_sizes():
   #
   # Anchor scales and aspect ratios.
   #
@@ -87,7 +87,7 @@ def generate_anchor_maps(image_shape, feature_pixels):
   
   # Base anchor template: (num_anchors,4), with each anchor being specified by
   # its corners (y1,x1,y2,x2)
-  anchor_sizes = compute_anchor_sizes()
+  anchor_sizes = _compute_anchor_sizes()
   num_anchors = anchor_sizes.shape[0]
   anchor_template = np.empty((num_anchors, 4))
   anchor_template[:,0:2] = -0.5 * anchor_sizes  # y1, x1 (top-left)

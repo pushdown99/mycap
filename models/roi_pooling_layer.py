@@ -76,7 +76,7 @@ class RoIPoolingLayer(Layer):
       # Special case optimization: 7x7x512 pools, ~4-5x speed-up
       return tf.map_fn(
         fn = lambda input_pair:
-          RoIPoolingLayer.compute_pooled_rois_7x7x512(feature_map = input_pair[0], rois = input_pair[1]),
+          RoIPoolingLayer._compute_pooled_rois_7x7x512(feature_map = input_pair[0], rois = input_pair[1]),
         elems = inputs,
         fn_output_signature = tf.float32  # this is absolutely required else the fn type inference seems to fail spectacularly
       )
@@ -84,13 +84,13 @@ class RoIPoolingLayer(Layer):
       # Generic case capable of handling any pool shape
       return tf.map_fn(
         fn = lambda input_pair:
-          RoIPoolingLayer.compute_pooled_rois(feature_map = input_pair[0], rois = input_pair[1], pool_size = self.pool_size),
+          RoIPoolingLayer._compute_pooled_rois(feature_map = input_pair[0], rois = input_pair[1], pool_size = self.pool_size),
         elems = inputs,
         fn_output_signature = tf.float32  # this is absolutely required else the fn type inference seems to fail spectacularly
       )
 
   @tf.function
-  def compute_pooled_rois(feature_map, rois, pool_size):
+  def _compute_pooled_rois(feature_map, rois, pool_size):
     #
     # Given a feature map and its associated RoIs, iterate over all RoIs for
     # this map. This is the second level of iteration and yields the num_rois
@@ -98,13 +98,13 @@ class RoIPoolingLayer(Layer):
     #
     return tf.map_fn(
       fn = lambda roi:
-        RoIPoolingLayer.compute_pooled_roi(feature_map = feature_map, roi = roi, pool_size = pool_size),
+        RoIPoolingLayer._compute_pooled_roi(feature_map = feature_map, roi = roi, pool_size = pool_size),
       elems = rois,
       fn_output_signature = tf.float32
     )
 
   @tf.function
-  def compute_pooled_roi(feature_map, roi, pool_size):
+  def _compute_pooled_roi(feature_map, roi, pool_size):
     #
     # Given a feature map and a single RoI, computes the pooled map of shape
     # (pool_size, pool_size).
@@ -133,7 +133,7 @@ class RoIPoolingLayer(Layer):
     pooled_cells = tf.map_fn(
       fn = lambda y: tf.map_fn(
         fn = lambda x:
-          RoIPoolingLayer.pool_one_cell(region_of_interest, pool_y_start = y, pool_x_start = x, y_step = y_step, x_step = x_step, region_height = region_height, region_width = region_width, pool_size = pool_size, num_channels = num_channels),
+          RoIPoolingLayer._pool_one_cell(region_of_interest, pool_y_start = y, pool_x_start = x, y_step = y_step, x_step = x_step, region_height = region_height, region_width = region_width, pool_size = pool_size, num_channels = num_channels),
         elems = x_range
       ),
       elems = y_range
@@ -141,7 +141,7 @@ class RoIPoolingLayer(Layer):
     return pooled_cells
 
   @tf.function
-  def pool_one_cell(region_of_interest, pool_y_start, pool_x_start, y_step, x_step, region_height, region_width, pool_size, num_channels):
+  def _pool_one_cell(region_of_interest, pool_y_start, pool_x_start, y_step, x_step, region_height, region_width, pool_size, num_channels):
     #
     # This function maps a single pooling cell over some part of the RoI and
     # then computes the max of the RoI cells inside that pooling cell. The
@@ -175,7 +175,7 @@ class RoIPoolingLayer(Layer):
     return tf.math.reduce_max(pool_cell, axis=(1,0))  # keep channels independent
 
   @tf.function
-  def compute_pooled_rois_7x7x512(feature_map, rois):
+  def _compute_pooled_rois_7x7x512(feature_map, rois):
     # Special case: 7x7x512, unrolled pool width and height (7x7=49)
     return tf.map_fn(
       fn = lambda roi: tf.reshape(

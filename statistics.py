@@ -271,7 +271,17 @@ class PrecisionRecallCurveCalculator:
 
   def print_average_precisions(self, class_index_to_name):
     # Compute average precisions for each class
-    labels = [ class_index_to_name[class_index] for class_index in self._object_count_by_class_index ]
+    t = list(dict.fromkeys(class_index_to_name))
+
+    print (class_index_to_name)
+    print (t)
+    print (self._object_count_by_class_index)
+
+    if type(t[0]) is not str:
+      labels = [ class_index_to_name[class_index] for class_index in self._object_count_by_class_index ]
+    else:
+      labels = [ class_index_to_name[str(class_index)] for class_index in self._object_count_by_class_index ]
+
     average_precisions = []
     for class_index in self._object_count_by_class_index:
       average_precision, _, _ = self._compute_average_precision(class_index = class_index)
