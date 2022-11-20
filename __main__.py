@@ -1,5 +1,5 @@
 import argparse
-from . import FasterRCNN, vocFasterRCNN, niaFasterRCNN
+from . import FasterRCNN, vocFasterRCNN, niaFasterRCNN, cocoFasterRCNN
 
 
 if __name__ == "__main__":
@@ -38,4 +38,4 @@ if __name__ == "__main__":
   parser.add_argument("--debug-dir", metavar = "dir", action = "store", help = "Enable full TensorFlow Debugger V2 logging to specified directory")
   options = parser.parse_args()
 
-  niaFasterRCNN.Model (options)
+  cocoFasterRCNN.Model (options)

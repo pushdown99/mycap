@@ -299,6 +299,7 @@ class Model:
 
     # Construct model and load initial weights
     model = faster_rcnn.FasterRCNNModel(
+      imagenet               = options.imagenet,
       num_classes            = voc.Dataset.num_classes,
       allow_edge_proposals   = not options.exclude_edge_proposals,
       custom_roi_pool        = options.custom_roi_pool,

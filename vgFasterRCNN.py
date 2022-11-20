@@ -10,7 +10,7 @@ import tensorflow as tf
 
 from .statistics import TrainingStatistics
 from .statistics import PrecisionRecallCurveCalculator
-from .datasets import nia
+from .datasets import vg
 from .models import faster_rcnn
 from .models import vgg16
 from .models import math_utils
@@ -22,7 +22,7 @@ class Model:
   def render_anchors(self):
     options = self.options
 
-    training_data = nia.Dataset(dir = options.dataset_dir, split = options.train_split, augment = False, shuffle = False)
+    training_data = vg.Dataset(dir = options.dataset_dir, split = options.train_split, augment = False, shuffle = False)
     if not os.path.exists(options.dump_anchors):
       os.makedirs(options.dump_anchors)
     print("Rendering anchors from '%s' to set '%s'..." % (options.train_split, options.dump_anchors))
@@ -54,6 +54,12 @@ class Model:
     num_negative_anchors = len(negative_anchors)
     num_positive_samples = min(rpn_minibatch_size // 2, num_positive_anchors) # up to half the samples should be positive, if possible
     num_negative_samples = rpn_minibatch_size - num_positive_samples          # the rest should be negative
+    #print (num_negative_anchors, num_negative_samples)
+    if num_negative_anchors <= 0:
+      rpn_minibatch_map = rpn_map.copy()
+      rpn_minibatch_map[:,:,:,:,0] = 0
+      return rpn_minibatch_map
+
     positive_anchor_idxs = random.sample(range(num_positive_anchors), num_positive_samples)
     negative_anchor_idxs = random.sample(range(num_negative_anchors), num_negative_samples)
 
@@ -97,6 +103,8 @@ class Model:
       background_indices = gt_rpn_background_indices,
       rpn_minibatch_size = 256
     )
+    if (gt_rpn_minibatch_map == 0).all():
+      return None, None, None
 
     # Input vector to model
     if mode == "train":
@@ -111,7 +119,7 @@ class Model:
     options = self.options
 
     if eval_data is None:
-      eval_data = nia.Dataset(dir = options.dataset_dir, split = options.eval_split, augment = False, shuffle = False)
+      eval_data = vg.Dataset(dir = options.dataset_dir, split = options.eval_split, augment = False, shuffle = False)
     if num_samples is None:
       num_samples = eval_data.num_samples
     precision_recall_curve = PrecisionRecallCurveCalculator()
@@ -128,11 +136,11 @@ class Model:
       if i >= num_samples:
         break
     if print_average_precisions:
-      precision_recall_curve.print_average_precisions(class_index_to_name = nia.Dataset.class_index_to_name)
+      precision_recall_curve.print_average_precisions(class_index_to_name = vg.Dataset.class_index_to_name)
     mean_average_precision = 100.0 * precision_recall_curve.compute_mean_average_precision()
     print("Mean Average Precision = %1.2f%%" % mean_average_precision)
     if plot:
-      precision_recall_curve.plot_average_precisions(class_index_to_name = nia.Dataset.class_index_to_name)
+      precision_recall_curve.plot_average_precisions(class_index_to_name = vg.Dataset.class_index_to_name)
     return mean_average_precision
 
   def train(self, model):
@@ -161,8 +169,8 @@ class Model:
     print("Checkpoints               : %s" % ("disabled" if not options.checkpoint_dir else options.checkpoint_dir))
     print("Final weights file        : %s" % ("none" if not options.save_to else options.save_to))
     print("Best weights file         : %s" % ("none" if not options.save_best_to else options.save_best_to))
-    training_data = nia.Dataset(dir = options.dataset_dir, split = options.train_split, augment = not options.no_augment, shuffle = True, cache = options.cache_images)
-    eval_data = nia.Dataset(dir = options.dataset_dir, split = options.eval_split, augment = False, shuffle = False, cache = False)
+    training_data = vg.Dataset(dir = options.dataset_dir, split = options.train_split, augment = not options.no_augment, shuffle = True, cache = options.cache_images)
+    eval_data = vg.Dataset(dir = options.dataset_dir, split = options.eval_split, augment = False, shuffle = False, cache = False)
     if options.checkpoint_dir and not os.path.exists(options.checkpoint_dir):
       os.makedirs(options.checkpoint_dir)
     if options.log_csv:
@@ -172,9 +180,12 @@ class Model:
     for epoch in range(1, 1 + options.epochs):
       print("Epoch %d/%d" % (epoch, options.epochs))
       stats = TrainingStatistics()
+      print ('total: ', training_data.num_samples, ', postfix: ', stats.get_progbar_postfix())
       progbar = tqdm(iterable = iter(training_data), total = training_data.num_samples, postfix = stats.get_progbar_postfix())
       for sample in progbar:
         x, image_data, gt_rpn_minibatch_map = self.convert_training_sample_to_model_input(sample = sample, mode = "train")
+        if x == None:
+          continue
         losses = model.train_on_batch(x = x, y = gt_rpn_minibatch_map, return_dict = True)
         stats.on_training_step(losses = losses)
         progbar.set_postfix(stats.get_progbar_postfix())
@@ -235,7 +246,7 @@ class Model:
       show_image = show_image,
       image = image,
       scored_boxes_by_class_index = scored_boxes_by_class_index,
-      class_index_to_name = nia.Dataset.class_index_to_name
+      class_index_to_name = vg.Dataset.class_index_to_name
     )
 
   def predict_one(self, model, url, show_image, output_path):
@@ -252,7 +263,7 @@ class Model:
     if not os.path.exists(dirname):
       os.makedirs(dirname)
     print("Rendering predictions from '%s' set to '%s'..." % (split, dirname))
-    dataset = nia.Dataset(dir = options.dataset_dir, split = split, augment = False, shuffle = False)
+    dataset = vg.Dataset(dir = options.dataset_dir, split = split, augment = False, shuffle = False)
     for sample in iter(dataset):
       output_path = os.path.join(dirname, os.path.splitext(os.path.basename(sample.filepath))[0] + ".png")
       _predict(model = model, image_data = sample.image_data, image = sample.image, show_image = False, output_path = output_path)
@@ -300,7 +311,7 @@ class Model:
     # Construct model and load initial weights
     model = faster_rcnn.FasterRCNNModel(
       imagenet               = options.imagenet,
-      num_classes            = nia.Dataset.num_classes,
+      num_classes            = vg.Dataset.num_classes,
       allow_edge_proposals   = not options.exclude_edge_proposals,
       custom_roi_pool        = options.custom_roi_pool,
       activate_class_outputs = not options.detector_logits,

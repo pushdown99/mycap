@@ -52,12 +52,16 @@ from . import math_utils
 
 
 class FasterRCNNModel(tf.keras.Model):
-  def __init__(self, num_classes, allow_edge_proposals, custom_roi_pool, activate_class_outputs, l2 = 0, dropout_probability = 0):
+  def __init__(self, imagenet, num_classes, allow_edge_proposals, custom_roi_pool, activate_class_outputs, l2 = 0, dropout_probability = 0):
     super().__init__()
 
+    self._imagenet = imagenet
     self._num_classes = num_classes
     self._activate_class_outputs = activate_class_outputs
-    self._stage1_feature_extractor = vgg16.FeatureExtractor(l2 = l2)
+    if imagenet == 'vgg16':
+      self._stage1_feature_extractor = vgg16.FeatureExtractor(l2 = l2)
+    else:
+      self._stage1_feature_extractor = efficientnet.FeatureExtractor(l2 = l2)
     self._stage2_region_proposal_network = rpn.RegionProposalNetwork(
       max_proposals_pre_nms_train = 12000,
       max_proposals_post_nms_train = 2000,
@@ -206,15 +210,26 @@ class FasterRCNNModel(tf.keras.Model):
     feature extractor convolutional layers as well as the two fully connected
     layers in the detector stage.
     """
-    keras_model = tf.keras.applications.VGG16(weights = "imagenet")
+    if self._imagenet == 'vgg16':
+      keras_model = tf.keras.applications.VGG16(weights = "imagenet")
+    else:
+      keras_model = tf.keras.applications.EfficientNetB0(weights = "imagenet")
     for keras_layer in keras_model.layers:
       weights = keras_layer.get_weights()
       if len(weights) > 0:
-        vgg16_layers = self._stage1_feature_extractor.layers + self._stage3_detector_network.layers
-        our_layer = [ layer for layer in vgg16_layers if layer.name == keras_layer.name ]
-        if len(our_layer) > 0:
-          print("Loading VGG-16 ImageNet weights into layer: %s" % our_layer[0].name)
-          our_layer[0].set_weights(weights)
+        if self._imagenet == 'vgg16':
+          vgg16_layers = self._stage1_feature_extractor.layers + self._stage3_detector_network.layers
+          our_layer = [ layer for layer in vgg16_layers if layer.name == keras_layer.name ]
+          if len(our_layer) > 0:
+            print("Loading VGG-16 ImageNet weights into layer: %s" % our_layer[0].name)
+            our_layer[0].set_weights(weights)
+        else:
+          efficientnet_layers = self._stage1_feature_extractor.layers + self._stage3_detector_network.layers
+          our_layer = [ layer for layer in efficientnet_layers if layer.name == keras_layer.name ]
+          if len(our_layer) > 0:
+            print("Loading EfficientNetB0 ImageNet weights into layer: %s" % our_layer[0].name)
+            our_layer[0].set_weights(weights)
+
 
   def _predictions_to_scored_boxes(self, input_image, classes, box_deltas, proposals, score_threshold):
     # Eliminate batch dimension
