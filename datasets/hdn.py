@@ -180,13 +180,9 @@ class Dataset:
     self.class_index_to_name = self._get_classes()
     self.class_name_to_index = { class_name: class_index for (class_index, class_name) in self.class_index_to_name.items() }
     self.num_classes = len(self.class_index_to_name)
-    assert self.num_classes == Dataset.num_classes, "Dataset does not have the expected number of classes (found %d but expected %d)" % (self.num_classes, Dataset.num_classes)
-    assert self.class_index_to_name == Dataset.class_index_to_name, "Dataset does not have the expected class mapping"
     self._filepaths = self._get_filepaths()
     self.num_samples = len(self._filepaths)
-    print ('Sample files: ', self.num_samples)
     self._gt_boxes_by_filepath = self._get_ground_truth_boxes(filepaths = self._filepaths, allow_difficult = allow_difficult) 
-    print ('Bound boxes : ', len(self._gt_boxes_by_filepath))
     self._i = 0
     self._iterable_filepaths = self._filepaths.copy()
     self._feature_pixels = feature_pixels
